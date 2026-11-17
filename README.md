@@ -30,6 +30,24 @@ Cloud Run voice gateway (ADK agent, tool router, latency meter)
    └── Pub/Sub → SMS · Looker Studio · Cloud Logging audit
 ```
 
+## ▶ Try the prototype
+**Live:** https://swapnilchaudhari007.github.io/LineSaathi/
+
+- **Live call:** paste a Gemini API key (from [AI Studio](https://aistudio.google.com/apikey); it stays in your browser), allow the mic and talk in Hindi, Marathi or Hinglish. Interrupt any time.
+- **Scripted demo:** no key needed. Replays a full fault-to-restore call; every tool call, Safety Gate transition and Live Board update is real code.
+- Try: *"DTC-114 pe trip hua hai, history batao"*, *"fuse badalne ka procedure kya hai?"*, *"Diva-11 pe shutdown permit chahiye"*, then press the operator buttons on the board and read the permit number back.
+
+### What the prototype does
+| Part | Implementation (`index.html`, no build step) |
+|---|---|
+| Voice | Gemini Live API over WebSocket (`BidiGenerateContent`), 16 kHz PCM16 mic via AudioWorklet, 24 kHz playback, input/output transcription, barge-in (`interrupted` stops playback) |
+| Tools (10) | `get_asset_history`, `search_sop`, `check_stock`, `create_ptw_request`, `get_ptw_status`, `submit_read_back`, `mark_work_done`, `log_fault`, `raise_indent`, `close_complaint` |
+| Voice Safety Gate | 7-state PTW machine in code. Operator steps need a human click on the board; lineman steps need a spoken read-back with permit number + feeder. Skips and wrong-actor steps are rejected and counted |
+| Grounding | SOP corpus; the cited clause is spoken and shown on the board |
+| Live Board | Permits, faults, indents, complaints (+ consumer SMS), time to first audio, tool latency, actions, unsafe skips blocked, audit trail |
+
+Sample assets, SOPs and complaints are synthetic. For production, use ephemeral tokens instead of an API key in the browser.
+
 ## Unit economics
 | | |
 |---|---|
@@ -39,12 +57,14 @@ Cloud Run voice gateway (ADK agent, tool router, latency meter)
 | 50-lineman pilot | ≈ ₹56,000 / month |
 
 ## Repo contents
+- `index.html`: the working prototype (GitHub Pages)
 - `docs/LineSaathi_Idea_Submission.pdf`: idea deck (12 slides)
 - `docs/submission-answers.md`: form answers
 
 ## Roadmap
 - [x] Idea submission
-- [ ] Prototype: Gemini Live voice gateway + mock OMS + Safety Gate + Live Board (due 6 Dec 2026)
+- [x] Prototype: browser Gemini Live agent + 10 tools + Safety Gate + Live Board
+- [ ] Telephony bridge (Exotel → Cloud Run → Gemini Live) and Vertex AI RAG over real SOPs
 
 ## Team
 **Swapnil Dinkar Chaudhari**, Senior Software Developer, Thane · [LinkedIn](https://linkedin.com/in/swapnil-chaudhari-533a25105)

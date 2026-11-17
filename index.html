@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LineSaathi — Gemini Live voice agent for linemen</title>
+<style>
+:root{
+  --bg:#0d1117;--panel:#151b23;--panel2:#1b232d;--line:#2a3541;--text:#e6edf3;--muted:#8b98a5;
+  --accent:#f5b301;--ok:#2ea043;--warn:#d29922;--bad:#f85149;--blue:#58a6ff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);background:#0b0f14;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#111;font-weight:800;font-size:18px}
+.brand h1{font-size:18px;margin:0}
+.brand small{display:block;color:var(--muted);font-size:12px}
+.controls{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input,select,button,textarea{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+input[type=password]{width:230px}
+button{cursor:pointer;font-weight:600}
+button.primary{background:var(--accent);color:#111;border-color:var(--accent)}
+button.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+button.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+main{display:grid;grid-template-columns:minmax(300px,1.05fr) minmax(320px,1.15fr) minmax(300px,1fr);gap:12px;padding:12px;min-height:calc(100vh - 62px)}
+@media(max-width:1100px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;min-height:0}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0}
+#transcript{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:300px;max-height:62vh;padding-right:4px}
+.msg{padding:8px 10px;border-radius:10px;max-width:92%;white-space:pre-wrap}
+.msg.user{background:#1f3b5c;align-self:flex-end}
+.msg.agent{background:var(--panel2);border:1px solid var(--line)}
+.msg.tool{background:transparent;border:1px dashed var(--line);color:var(--muted);font:12px ui-monospace,Consolas,monospace}
+.msg.sys{color:var(--muted);font-size:12px;align-self:center}
+.who{font-size:11px;color:var(--muted);display:block;margin-bottom:2px}
+.mic{display:flex;align-items:center;gap:10px;margin-top:10px}
+.level{flex:1;height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.level>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--accent))}
+.dot{width:10px;height:10px;border-radius:50%;background:#444}
+.dot.on{background:var(--bad);box-shadow:0 0 0 4px rgba(248,81,73,.2)}
+.textin{display:flex;gap:8px;margin-top:8px}
+.textin input{flex:1}
+.gate{display:flex;flex-direction:column;gap:6px}
+.ptw{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel2)}
+.ptw-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.ptw-head b{font-size:15px}
+.states{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.st{font-size:10px;text-align:center;padding:6px 2px;border-radius:6px;background:#0f141a;color:var(--muted);border:1px solid var(--line);line-height:1.2}
+.st.done{background:rgba(46,160,67,.18);color:#7ee2a0;border-color:#2ea04366}
+.st.cur{background:var(--accent);color:#111;font-weight:700;border-color:var(--accent)}
+.ptw-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.ptw-meta{font-size:12px;color:var(--muted);margin-top:6px}
+.blocked{color:var(--bad);font-size:12px;margin-top:6px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kpi{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px}
+.kpi b{display:block;font-size:20px}
+.kpi span{font-size:11px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.pill{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;background:var(--panel2);border:1px solid var(--line)}
+.pill.open{color:var(--warn)} .pill.closed{color:#7ee2a0}
+.cite{background:var(--panel2);border-left:3px solid var(--accent);padding:8px 10px;border-radius:6px;font-size:12px}
+.cite b{color:var(--accent)}
+.scroll{overflow:auto;max-height:220px}
+#audit{font:11px ui-monospace,Consolas,monospace;color:var(--muted);max-height:160px;overflow:auto;white-space:pre-wrap}
+.note{font-size:12px;color:var(--muted)}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+.tag.live{color:#111;background:var(--ok);border-color:var(--ok)}
+.tag.demo{color:#111;background:var(--blue);border-color:var(--blue)}
+a{color:var(--blue)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">⚡</div>
+    <div><h1>LineSaathi</h1><small>Hands-free Gemini Live voice agent for electricity linemen · “Haath kaam pe, awaaz Saathi pe.”</small></div>
+  </div>
+  <span id="modeTag" class="tag">idle</span>
+  <div class="controls">
+    <input id="apiKey" type="password" placeholder="Gemini API key (stays in your browser)" autocomplete="off">
+    <select id="model" title="Gemini Live model">
+      <option value="gemini-3.8-live">gemini-3.8-live</option>
+      <option value="gemini-2.5-flash-native-audio-preview-09-2025">gemini-2.5-flash-native-audio-preview</option>
+      <option value="custom">custom…</option>
+    </select>
+    <select id="voice" title="Voice"><option>Kore</option><option>Puck</option><option>Charon</option><option>Aoede</option></select>
+    <button id="btnLive" class="primary">🎙️ Start live call</button>
+    <button id="btnDemo">▶ Scripted demo (no key)</button>
+    <button id="btnStop" class="danger" disabled>■ End</button>
+  </div>
+</header>
+
+<main>
+  <!-- Column 1: Conversation -->
+  <section class="card">
+    <h2>📞 Lineman call <span id="callInfo" class="note"></span></h2>
+    <div id="transcript"></div>
+    <div class="mic"><span id="micDot" class="dot"></span><div class="level"><i id="lvl"></i></div><span id="micLabel" class="note">mic off</span></div>
+    <div class="textin"><input id="txt" placeholder="Type instead of speaking (DTMF/noise fallback)…"><button id="btnSend">Send</button></div>
+    <p class="note" style="margin:8px 0 0">Speak Hindi, Marathi or Hinglish. Interrupt any time — the agent stops talking (barge-in). Try: “DTC-114 pe trip hua hai, history batao”, “shutdown permit chahiye feeder Diva-11 pe”.</p>
+  </section>
+
+  <!-- Column 2: Safety Gate -->
+  <section class="col">
+    <div class="card">
+      <h2>🛡️ Voice Safety Gate — permit-to-work state machine</h2>
+      <p class="note" style="margin:0 0 8px">Deterministic code, not the LLM, owns every transition. Operator steps need a human click; read-back steps need the lineman to say the permit ID and feeder aloud. Skips are rejected and logged.</p>
+      <div id="gate" class="gate"><p class="note">No permits yet. Ask LineSaathi for a shutdown.</p></div>
+    </div>
+    <div class="card">
+      <h2>📚 Grounded answer — source cited</h2>
+      <div id="cite" class="cite note">SOP citations used by the agent appear here.</div>
+    </div>
+    <div class="card">
+      <h2>🧾 Audit trail</h2>
+      <div id="audit"></div>
+    </div>
+  </section>
+
+  <!-- Column 3: Supervisor Live Board -->
+  <section class="col">
+    <div class="card">
+      <h2>📊 Supervisor Live Board</h2>
+      <div class="kpis">
+        <div class="kpi"><b id="kTtfa">–</b><span>time to first audio</span></div>
+        <div class="kpi"><b id="kTool">–</b><span>avg tool ms</span></div>
+        <div class="kpi"><b id="kTasks">0</b><span>actions done</span></div>
+        <div class="kpi"><b id="kBlocked">0</b><span>unsafe skips blocked</span></div>
+      </div>
+    </div>
+    <div class="card"><h2>Fault tickets</h2><div class="scroll"><table id="tFaults"><thead><tr><th>ID</th><th>Asset</th><th>Type / cause</th><th>Status</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="card"><h2>Material indents</h2><div class="scroll"><table id="tIndents"><thead><tr><th>ID</th><th>Item</th><th>Qty</th><th>Store</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="card"><h2>Consumer complaints</h2><div class="scroll"><table id="tComplaints"><thead><tr><th>ID</th><th>Area</th><th>Issue</th><th>Status</th></tr></thead><tbody></tbody></table></div></div>
+  </section>
+</main>
+
+<script>
+/* =========================================================
+   LineSaathi prototype — single file, no build step.
+   Gemini Live API (BidiGenerateContent over WebSocket) in the browser,
+   with a mock DISCOM OMS, SOP knowledge base and a deterministic
+   Safety Gate. Sample data below is synthetic, for demo only.
+   ========================================================= */
+
+// ---------- Sample knowledge & data (synthetic) ----------
+const SOPS = [
+  {id:"SOP-PTW-01", title:"Permit-to-work before any work on HT/LT line", lang:"en",
+   text:"No work shall start on a line or apparatus until the substation operator has isolated it, a permit-to-work has been issued in the lineman's name, and the permit number and feeder have been read back and confirmed.",
+   keywords:"ptw permit shutdown work start isolate line clear parmit shutdown chahiye"},
+  {id:"SOP-EARTH-02", title:"Test and earth both sides before touching", lang:"en",
+   text:"After isolation, test the line dead with an approved HV tester, then apply portable earthing on both sides of the work point. Earth first, then touch. Remove earths only after all men are clear.",
+   keywords:"earthing earth discharge tester dead test both sides arthing"},
+  {id:"SOP-RECHG-03", title:"Return of permit and re-charging", lang:"en",
+   text:"Re-charging is allowed only after the permit holder confirms all men, tools and earths are removed, returns the permit by voice read-back, and the operator closes it. Never re-charge on time-based assumption.",
+   keywords:"recharge re-charge charge line return permit close restore supply chalu"},
+  {id:"SOP-DTC-04", title:"Distribution transformer HT fuse blown", lang:"en",
+   text:"For a blown HT DO fuse on a DTC: take shutdown, check for LT overload or short circuit, inspect lightning arrester and bushing, replace with correct rating fuse (as per DTC kVA chart), test load before leaving.",
+   keywords:"fuse blown do fuse dtc transformer trip hta fuse udd gaya fuse gaya"},
+  {id:"SOP-OIL-05", title:"Transformer oil leakage", lang:"en",
+   text:"If oil level is below the gauge mark or oil is leaking, do not re-energise until oil is topped up and the gasket is checked. Raise an indent for transformer oil and gasket set; log a maintenance fault.",
+   keywords:"oil leak leakage tel transformer gasket"},
+  {id:"SOP-PPE-06", title:"PPE for pole work", lang:"en",
+   text:"Wear insulated gloves rated for the voltage, safety helmet, full-body harness with lanyard, and safety shoes. Inspect gloves for pinholes by air test before each use.",
+   keywords:"ppe gloves helmet harness belt safety shoes dastane"},
+  {id:"SOP-RAIN-07", title:"Work in rain and lightning", lang:"en",
+   text:"Stop pole and HT work during lightning or heavy rain. Resume only after the supervisor's clearance. Wet gloves must not be used.",
+   keywords:"rain lightning barish paus weather storm"},
+  {id:"SOP-CMP-08", title:"Closing a consumer complaint", lang:"en",
+   text:"A complaint can be closed only after supply is restored and verified at the consumer end. The consumer gets an SMS with the restoration time and the complaint number.",
+   keywords:"complaint close consumer sms restore supply shikayat"}
+];
+const ASSETS = {
+  "DTC-114": {name:"DTC-114 Rameshwar Park", kva:200, feeder:"Diva-11", lat:"19.18N", make:"Kirloskar", installed:2016,
+    history:[{date:"2026-09-12",event:"HT DO fuse blown (B-phase), replaced 16A"},{date:"2026-07-03",event:"LA flashover after lightning, LA replaced"},{date:"2026-03-21",event:"Oil topped up 20 L, gasket OK"}]},
+  "DTC-207": {name:"DTC-207 Station Road", kva:315, feeder:"Diva-07", make:"Voltamp", installed:2019,
+    history:[{date:"2026-10-28",event:"LT cable lug burnt, replaced"},{date:"2026-05-10",event:"Overload 112%, load shifted to DTC-208"}]},
+  "DTC-031": {name:"DTC-031 Sabe Gaon", kva:100, feeder:"Diva-03", make:"Crompton", installed:2011,
+    history:[{date:"2026-11-02",event:"Oil leakage reported, pending"},{date:"2026-08-19",event:"HT fuse blown twice in a week"}]}
+};
+const STOCK = {
+  "ht fuse 16a":{name:"HT DO fuse 16 A",qty:24,store:"Diva sub-store"},
+  "ht fuse 25a":{name:"HT DO fuse 25 A",qty:6,store:"Diva sub-store"},
+  "lightning arrester 11kv":{name:"Lightning arrester 11 kV",qty:3,store:"Thane central store"},
+  "transformer oil":{name:"Transformer oil (L)",qty:180,store:"Thane central store"},
+  "gasket set":{name:"Transformer gasket set",qty:0,store:"Thane central store"},
+  "lt cable lug 95":{name:"LT cable lug 95 sq mm",qty:40,store:"Diva sub-store"}
+};
+const COMPLAINTS = [
+  {id:"CMP-55821",area:"Rameshwar Park, Diva East",issue:"No supply since 09:40",asset:"DTC-114",status:"open"},
+  {id:"CMP-55830",area:"Station Road",issue:"Low voltage",asset:"DTC-207",status:"open"}
+];
+
+// ---------- Mock OMS state ----------
+const OMS = {ptws:[], faults:[], indents:[], complaints:COMPLAINTS.map(c=>({...c}))};
+let seq = {ptw:4100, flt:9300, ind:7700};
+const metrics = {ttfa:[], tool:[], actions:0, blocked:0};
+
+// ---------- Safety Gate (deterministic) ----------
+const STATES = ["REQUESTED","OPERATOR_APPROVED","READ_BACK_OK","LINE_CLEAR","WORK_DONE","RECHARGE_REQUESTED","CLOSED"];
+const STATE_LABEL = {REQUESTED:"Requested",OPERATOR_APPROVED:"Operator approved",READ_BACK_OK:"Read-back OK",LINE_CLEAR:"Line clear (earthed)",WORK_DONE:"Work done",RECHARGE_REQUESTED:"Recharge requested",CLOSED:"Closed"};
+// who may perform each transition INTO the state
+const ACTOR = {OPERATOR_APPROVED:"operator", READ_BACK_OK:"lineman", LINE_CLEAR:"operator", WORK_DONE:"lineman", RECHARGE_REQUESTED:"lineman", CLOSED:"operator"};
+
+function normalise(s){return (s||"").toLowerCase().replace(/[^a-z0-9]/g,"");}
+function digits(s){return (s||"").replace(/\D/g,"");}
+
+function gateAdvance(ptwId, target, actor, readBack){
+  const p = OMS.ptws.find(x=>x.id===ptwId);
+  if(!p) return {ok:false,error:`Permit ${ptwId} not found`};
+  const cur = STATES.indexOf(p.state), tgt = STATES.indexOf(target);
+  if(tgt<0) return {ok:false,error:`Unknown state ${target}`};
+  if(tgt!==cur+1){ return block(p,`Cannot go ${p.state} → ${target}. Next allowed step is ${STATES[cur+1]||"none"}.`); }
+  if(ACTOR[target]!==actor){ return block(p,`${target} can only be set by the ${ACTOR[target]}, not the ${actor}.`); }
+  if(target==="READ_BACK_OK" || target==="RECHARGE_REQUESTED"){
+    const rb = normalise(readBack), rbd = digits(readBack);
+    const idOk = rbd.includes(digits(p.id));
+    const feederOk = rb.includes(normalise(p.feeder)) || (digits(p.feeder) && rbd.includes(digits(p.feeder)) && rb.includes("diva"));
+    if(!idOk || !feederOk) return block(p,`Read-back rejected: lineman must say permit number ${p.id} and feeder ${p.feeder}. Heard: “${readBack||""}”.`);
+    if(target==="RECHARGE_REQUESTED" && !/(earth|arth|men|clear|saaf|hata|removed|nikal)/i.test(readBack))
+      return block(p,`Recharge read-back must confirm all men and earths are removed.`);
+  }
+  p.state = target; p.blocked = null; p.log.push({t:now(),state:target,by:actor,readBack:readBack||""});
+  audit(`${p.id} → ${target} by ${actor}${readBack?` · read-back “${readBack}”`:""}`);
+  if(target==="CLOSED"){ metrics.actions++; }
+  render(); return {ok:true, permit:p.id, state:p.state, next:STATES[tgt+1]||null};
+}
+function block(p,why){ metrics.blocked++; p.blocked = why; audit(`BLOCKED ${p.id}: ${why}`); render(); return {ok:false,blocked:true,error:why}; }
+
+// ---------- Tools exposed to Gemini ----------
+const TOOL_DECLS = [
+  {name:"get_asset_history", description:"Get details and recent fault history of a distribution transformer (DTC) or asset by ID, e.g. DTC-114.",
+   parameters:{type:"OBJECT",properties:{asset_id:{type:"STRING",description:"Asset ID like DTC-114"}},required:["asset_id"]}},
+  {name:"search_sop", description:"Search DISCOM SOPs and safety rules. Always call this before giving any safety or procedure advice and cite the SOP id in the answer.",
+   parameters:{type:"OBJECT",properties:{query:{type:"STRING",description:"What to look up, any language"}},required:["query"]}},
+  {name:"check_stock", description:"Check store stock of a material item, e.g. 'HT fuse 16A', 'transformer oil', 'gasket set'.",
+   parameters:{type:"OBJECT",properties:{item:{type:"STRING"}},required:["item"]}},
+  {name:"create_ptw_request", description:"Raise a shutdown permit-to-work request. The permit starts in REQUESTED and needs operator approval and a spoken read-back before work.",
+   parameters:{type:"OBJECT",properties:{feeder:{type:"STRING",description:"Feeder name like Diva-11"},asset_id:{type:"STRING"},reason:{type:"STRING"}},required:["feeder","asset_id"]}},
+  {name:"get_ptw_status", description:"Get the current Safety Gate state of a permit.",
+   parameters:{type:"OBJECT",properties:{ptw_id:{type:"STRING"}},required:["ptw_id"]}},
+  {name:"submit_read_back", description:"Submit the lineman's exact spoken read-back to the Safety Gate. Use stage 'start' after operator approval (lineman repeats permit number + feeder) and stage 'recharge' when returning the permit (lineman repeats permit number + feeder and confirms men and earths removed). Pass the lineman's words verbatim; never invent them.",
+   parameters:{type:"OBJECT",properties:{ptw_id:{type:"STRING"},stage:{type:"STRING",enum:["start","recharge"]},read_back_text:{type:"STRING"}},required:["ptw_id","stage","read_back_text"]}},
+  {name:"mark_work_done", description:"Mark the work on a permit as done, when the lineman says the job is finished.",
+   parameters:{type:"OBJECT",properties:{ptw_id:{type:"STRING"}},required:["ptw_id"]}},
+  {name:"log_fault", description:"Log a fault ticket against an asset.",
+   parameters:{type:"OBJECT",properties:{asset_id:{type:"STRING"},fault_type:{type:"STRING"},cause:{type:"STRING"},note:{type:"STRING"}},required:["asset_id","fault_type"]}},
+  {name:"raise_indent", description:"Raise a material indent (request) to the store.",
+   parameters:{type:"OBJECT",properties:{item:{type:"STRING"},qty:{type:"NUMBER"}},required:["item","qty"]}},
+  {name:"close_complaint", description:"Close a consumer complaint after supply is restored; sends SMS to the consumer. If no ID is given, closes the open complaint linked to the asset.",
+   parameters:{type:"OBJECT",properties:{complaint_id:{type:"STRING"},asset_id:{type:"STRING"}}}}
+];
+
+function findStock(item){
+  const q = (item||"").toLowerCase();
+  let best=null,score=0;
+  for(const [k,v] of Object.entries(STOCK)){
+    const s = k.split(" ").filter(w=>q.includes(w)).length;
+    if(s>score){score=s;best=v;}
+  }
+  return best;
+}
+function sopSearch(q){
+  const words = (q||"").toLowerCase().split(/[^a-z0-9ऀ-ॿ-]+/).filter(w=>w.length>2);
+  return SOPS.map(s=>({s,score:words.filter(w=>(s.keywords+" "+s.title+" "+s.text).toLowerCase().includes(w)).length}))
+    .filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,2).map(x=>x.s);
+}
+function assetId(a){ const m=(a||"").toUpperCase().match(/(\d{2,4})/); return m?("DTC-"+m[1].padStart(3,"0")):(a||"").toUpperCase(); }
+function feederName(f){ const m=(f||"").match(/(\d{1,2})/); return m?("Diva-"+m[1].padStart(2,"0")):f; }
+
+const TOOLS = {
+  get_asset_history({asset_id}){ const id=assetId(asset_id); const a=ASSETS[id]; return a?{asset_id:id,...a}:{error:`Asset ${id} not found. Known: ${Object.keys(ASSETS).join(", ")}`}; },
+  search_sop({query}){ const r=sopSearch(query); if(r.length) showCite(r); return r.length?{results:r.map(s=>({sop_id:s.id,title:s.title,text:s.text}))}:{results:[],note:"No SOP matched. Say you are not sure and escalate to JE."}; },
+  check_stock({item}){ const s=findStock(item); return s?{...s,available:s.qty>0}:{error:"Item not in catalogue"}; },
+  create_ptw_request({feeder,asset_id,reason}){
+    const f=feederName(feeder), a=assetId(asset_id);
+    const open = OMS.ptws.find(p=>p.feeder===f && p.state!=="CLOSED");
+    if(open) return {error:`Permit ${open.id} is already open on ${f} in state ${open.state}.`};
+    const p={id:"PTW-"+(++seq.ptw), feeder:f, asset:a, reason:reason||"", holder:"Lineman R. Patil", state:"REQUESTED", log:[{t:now(),state:"REQUESTED",by:"agent"}]};
+    OMS.ptws.unshift(p); audit(`${p.id} REQUESTED on ${f}/${a} (${p.reason})`); metrics.actions++; render();
+    return {ptw_id:p.id, state:p.state, next:"Waiting for substation operator approval on the Live Board. Tell the lineman not to start work."};
+  },
+  get_ptw_status({ptw_id}){ const p=OMS.ptws.find(x=>x.id===normPtw(ptw_id)); return p?{ptw_id:p.id,state:p.state,next:STATES[STATES.indexOf(p.state)+1]||null, waiting_for: ACTOR[STATES[STATES.indexOf(p.state)+1]]||null}:{error:"not found"}; },
+  submit_read_back({ptw_id,stage,read_back_text}){ return gateAdvance(normPtw(ptw_id), stage==="recharge"?"RECHARGE_REQUESTED":"READ_BACK_OK", "lineman", read_back_text); },
+  mark_work_done({ptw_id}){ return gateAdvance(normPtw(ptw_id),"WORK_DONE","lineman"); },
+  log_fault({asset_id,fault_type,cause,note}){ const f={id:"FLT-"+(++seq.flt),asset:assetId(asset_id),type:fault_type,cause:cause||"",note:note||"",status:"open",t:now()}; OMS.faults.unshift(f); metrics.actions++; audit(`${f.id} fault logged on ${f.asset}: ${f.type}`); render(); return {fault_id:f.id,status:"open"}; },
+  raise_indent({item,qty}){ const s=findStock(item); const i={id:"IND-"+(++seq.ind),item:s?s.name:item,qty:qty||1,store:s?s.store:"Thane central store",stock:s?s.qty:null,t:now()}; OMS.indents.unshift(i); metrics.actions++; audit(`${i.id} indent ${i.qty} × ${i.item}`); render(); return {indent_id:i.id,store:i.store,in_stock:s?s.qty>=i.qty:false}; },
+  close_complaint({complaint_id,asset_id}){
+    let c = complaint_id ? OMS.complaints.find(x=>digits(x.id)===digits(complaint_id)) : OMS.complaints.find(x=>x.asset===assetId(asset_id) && x.status==="open");
+    if(!c) return {error:"No matching open complaint"};
+    const p = OMS.ptws.find(x=>x.asset===c.asset && x.state!=="CLOSED");
+    if(p) return block(p,`Complaint ${c.id} cannot be closed while ${p.id} is still ${p.state}; supply not restored.`);
+    c.status="closed"; c.closedAt=now(); metrics.actions++; audit(`${c.id} closed · SMS sent to consumer: “Supply restored at ${c.closedAt}. Ref ${c.id}.”`); render();
+    return {complaint_id:c.id,status:"closed",sms:"sent"};
+  }
+};
+function normPtw(id){ const d=digits(id); return d?("PTW-"+d):id; }
+
+async function runTool(name,args){
+  const t0=performance.now(); let out;
+  try{ out = TOOLS[name] ? TOOLS[name](args||{}) : {error:"unknown tool"}; }catch(e){ out={error:String(e)}; }
+  const ms=Math.round(performance.now()-t0)+netJitter();
+  metrics.tool.push(ms); addMsg("tool",`⚙ ${name}(${JSON.stringify(args||{})}) → ${JSON.stringify(out)} · ${ms} ms`); render();
+  return out;
+}
+function netJitter(){ return 40+Math.round(Math.random()*60); } // simulated OMS/API round trip
+
+// ---------- UI helpers ----------
+const $=s=>document.querySelector(s);
+function now(){ return new Date().toLocaleTimeString("en-IN",{hour12:false}); }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+let curAgentEl=null, curUserEl=null;
+function addMsg(kind,text){
+  const d=document.createElement("div"); d.className="msg "+kind;
+  if(kind==="user"||kind==="agent"){ d.innerHTML=`<span class="who">${kind==="user"?"Lineman":"LineSaathi"} · ${now()}</span><span class="t"></span>`; d.querySelector(".t").textContent=text; }
+  else d.textContent=text;
+  $("#transcript").appendChild(d); $("#transcript").scrollTop=1e9; return d;
+}
+function appendTo(el,text){ el.querySelector(".t").textContent+=text; $("#transcript").scrollTop=1e9; }
+function audit(s){ $("#audit").textContent = `[${now()}] ${s}\n` + $("#audit").textContent; }
+function showCite(list){ $("#cite").innerHTML = list.map(s=>`<div style="margin-bottom:6px"><b>${s.id}</b> — ${esc(s.title)}<br>${esc(s.text)}</div>`).join(""); }
+
+function render(){
+  // gate
+  const g=$("#gate");
+  if(!OMS.ptws.length){ g.innerHTML='<p class="note">No permits yet. Ask LineSaathi for a shutdown.</p>'; }
+  else g.innerHTML = OMS.ptws.map(p=>{
+    const ci=STATES.indexOf(p.state); const nxt=STATES[ci+1];
+    const states=STATES.map((s,i)=>`<div class="st ${i<ci?"done":i===ci?"cur":""}">${STATE_LABEL[s]}</div>`).join("");
+    const opBtn = nxt && ACTOR[nxt]==="operator" ? `<button class="ok" data-ptw="${p.id}" data-to="${nxt}">Operator: ${nxt==="OPERATOR_APPROVED"?"Approve shutdown":nxt==="LINE_CLEAR"?"Feeder isolated & earthed — issue line clear":"Close permit & re-charge"}</button>` : "";
+    const wait = nxt && ACTOR[nxt]==="lineman" ? `<span class="note">Waiting for lineman: ${nxt==="READ_BACK_OK"?"spoken read-back of permit no. + feeder":nxt==="WORK_DONE"?"“kaam ho gaya”":"return read-back (men & earths removed)"}</span>`:"";
+    const skip = nxt ? `<button data-ptw="${p.id}" data-skip="1" title="Try an unsafe skip to see the gate block it">Try unsafe skip</button>`:"";
+    return `<div class="ptw"><div class="ptw-head"><b>${p.id}</b><span class="note">${p.feeder} · ${p.asset} · ${esc(p.holder)}</span></div>
+      <div class="states">${states}</div>
+      <div class="ptw-actions">${opBtn}${wait}${skip}</div>
+      ${p.blocked?`<div class="blocked">⛔ ${esc(p.blocked)}</div>`:""}
+      <div class="ptw-meta">${p.log.map(l=>`${l.t} ${l.state} (${l.by})`).join(" · ")}</div></div>`;
+  }).join("");
+  // tables
+  $("#tFaults tbody").innerHTML = OMS.faults.map(f=>`<tr><td>${f.id}</td><td>${f.asset}</td><td>${esc(f.type)}${f.cause?" / "+esc(f.cause):""}</td><td><span class="pill open">${f.status}</span></td></tr>`).join("")||'<tr><td colspan=4 class="note">none</td></tr>';
+  $("#tIndents tbody").innerHTML = OMS.indents.map(i=>`<tr><td>${i.id}</td><td>${esc(i.item)}</td><td>${i.qty}</td><td>${esc(i.store)}${i.stock!==null?` (stock ${i.stock})`:""}</td></tr>`).join("")||'<tr><td colspan=4 class="note">none</td></tr>';
+  $("#tComplaints tbody").innerHTML = OMS.complaints.map(c=>`<tr><td>${c.id}</td><td>${esc(c.area)}</td><td>${esc(c.issue)}</td><td><span class="pill ${c.status}">${c.status}${c.closedAt?" "+c.closedAt+" · SMS":""}</span></td></tr>`).join("");
+  // kpis
+  const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null;
+  const t=avg(metrics.ttfa), tm=avg(metrics.tool);
+  $("#kTtfa").textContent = t?`${(t/1000).toFixed(2)} s`:"–";
+  $("#kTool").textContent = tm?`${tm} ms`:"–";
+  $("#kTasks").textContent = metrics.actions; $("#kBlocked").textContent = metrics.blocked;
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button[data-ptw]"); if(!b) return;
+  const p=OMS.ptws.find(x=>x.id===b.dataset.ptw);
+  if(b.dataset.skip){ const target=STATES[Math.min(STATES.indexOf(p.state)+2,STATES.length-1)]; gateAdvance(p.id,target,"operator"); return; }
+  p.blocked=null; const r=gateAdvance(p.id,b.dataset.to,"operator");
+  if(r.ok) notifyAgent(`[Live Board event] Substation operator set ${p.id} to ${r.state}.`);
+});
+
+// ---------- Gemini Live session ----------
+const SYSTEM = `You are LineSaathi, a hands-free voice assistant for electricity distribution linemen of a DISCOM in Thane, Maharashtra. The lineman is on a pole with gloves on.
+Rules:
+- Reply in the lineman's language (Hindi, Marathi or Hinglish). Keep each reply short: 1-3 sentences, spoken style, no lists.
+- For any safety or procedure question, call search_sop first and mention the SOP id (e.g. "SOP-EARTH-02 ke hisaab se...").
+- Use tools for real data: get_asset_history, check_stock. Never invent asset history, stock or IDs.
+- Shutdown work uses the Safety Gate. Call create_ptw_request, then clearly tell the lineman NOT to start until operator approval. When the operator approves (you get a Live Board event), ask the lineman to read back the permit number and feeder aloud, and pass his exact words to submit_read_back stage "start". Tell him to wait for "line clear" from the operator, then remind him to test dead and earth both sides (SOP-EARTH-02).
+- When he says the job is done, call mark_work_done, then ask for the return read-back (permit number, feeder, all men and earths removed) and call submit_read_back stage "recharge".
+- If a tool returns blocked/error, explain it plainly and do not try to work around the Safety Gate. Never tell anyone the line is safe or can be re-charged unless the gate state says so.
+- After the permit is CLOSED, offer to close the consumer complaint (close_complaint), log the fault (log_fault) and raise any material indent (raise_indent).
+- If you are not sure, say so and suggest calling the JE.`;
+
+let ws=null, audioCtx=null, micStream=null, workletNode=null, playHead=0, playing=[], live=false, turnStart=null, gotFirstAudio=false;
+
+function wsUrl(key){ return `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(key)}`; }
+
+async function startLive(){
+  const key=$("#apiKey").value.trim();
+  if(!key){ alertNote("Paste a Gemini API key first (from aistudio.google.com/apikey), or run the scripted demo."); return; }
+  try{ localStorage.setItem("ls_key",key); }catch(e){}
+  let model=$("#model").value; if(model==="custom"){ model=prompt("Live model name","gemini-3.8-live")||"gemini-3.8-live"; }
+  setMode("live"); addMsg("sys",`Connecting to ${model}…`);
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  ws = new WebSocket(wsUrl(key));
+  ws.onopen = ()=>{
+    ws.send(JSON.stringify({setup:{
+      model:`models/${model}`,
+      generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:$("#voice").value}}}},
+      systemInstruction:{parts:[{text:SYSTEM}]},
+      tools:[{functionDeclarations:TOOL_DECLS}],
+      inputAudioTranscription:{}, outputAudioTranscription:{}
+    }}));
+  };
+  ws.onmessage = async ev=>{
+    const raw = typeof ev.data==="string"?ev.data:await ev.data.text();
+    let m; try{ m=JSON.parse(raw);}catch(e){return;}
+    if(m.setupComplete){ addMsg("sys","Connected. Speak now — e.g. “Namaste Saathi, DTC-114 pe trip hua hai”."); await startMic(); return; }
+    if(m.serverContent){ handleContent(m.serverContent); }
+    if(m.toolCall){ const responses=[]; for(const fc of m.toolCall.functionCalls||[]){ const r=await runTool(fc.name,fc.args); responses.push({id:fc.id,name:fc.name,response:{result:r}}); } ws.send(JSON.stringify({toolResponse:{functionResponses:responses}})); }
+    if(m.goAway){ addMsg("sys","Server asked to reconnect soon."); }
+  };
+  ws.onerror = ()=>addMsg("sys","WebSocket error — check the key / model name.");
+  ws.onclose = ev=>{ addMsg("sys",`Session closed (${ev.code}${ev.reason?": "+ev.reason:""}).`); stopAll(true); };
+}
+function handleContent(sc){
+  if(sc.interrupted){ stopPlayback(); addMsg("sys","↯ barge-in: agent stopped speaking"); curAgentEl=null; }
+  if(sc.inputTranscription?.text){ if(!curUserEl){ curUserEl=addMsg("user",""); turnStart=performance.now(); gotFirstAudio=false; curAgentEl=null; } appendTo(curUserEl,sc.inputTranscription.text); }
+  if(sc.outputTranscription?.text){ if(!curAgentEl){ curAgentEl=addMsg("agent",""); curUserEl=null; } appendTo(curAgentEl,sc.outputTranscription.text); }
+  for(const part of sc.modelTurn?.parts||[]){
+    if(part.inlineData?.data){ if(!gotFirstAudio && turnStart){ metrics.ttfa.push(performance.now()-turnStart); gotFirstAudio=true; render(); } playPcm(part.inlineData.data); }
+    if(part.text && !sc.outputTranscription){ if(!curAgentEl) curAgentEl=addMsg("agent",""); appendTo(curAgentEl,part.text); }
+  }
+  if(sc.turnComplete){ curAgentEl=null; curUserEl=null; }
+}
+function notifyAgent(text){
+  if(live && ws && ws.readyState===1){ ws.send(JSON.stringify({realtimeInput:{text}})); addMsg("sys",text); }
+  else if(demoHooks.onEvent) demoHooks.onEvent(text);
+}
+function sendText(){
+  const t=$("#txt").value.trim(); if(!t) return; $("#txt").value="";
+  if(live && ws && ws.readyState===1){ addMsg("user",t); turnStart=performance.now(); gotFirstAudio=false; ws.send(JSON.stringify({realtimeInput:{text:t}})); }
+  else addMsg("sys","Start a live call to talk to Gemini, or run the scripted demo.");
+}
+
+// mic capture → 16 kHz PCM16 → base64
+const WORKLET = `class P extends AudioWorkletProcessor{constructor(){super();this.buf=[];this.ratio=sampleRate/16000;this.acc=0;}
+process(inputs){const ch=inputs[0][0];if(!ch)return true;let sum=0;
+for(let i=0;i<ch.length;i++){sum+=ch[i]*ch[i];this.acc+=1;if(this.acc>=this.ratio){this.acc-=this.ratio;const s=Math.max(-1,Math.min(1,ch[i]));this.buf.push(s<0?s*0x8000:s*0x7fff);}}
+if(this.buf.length>=1600){this.port.postMessage({pcm:Int16Array.from(this.buf),rms:Math.sqrt(sum/ch.length)});this.buf=[];}return true;}}
+registerProcessor('pcm16',P);`;
+async function startMic(){
+  micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+  const url = URL.createObjectURL(new Blob([WORKLET],{type:"application/javascript"}));
+  await audioCtx.audioWorklet.addModule(url);
+  const src = audioCtx.createMediaStreamSource(micStream);
+  workletNode = new AudioWorkletNode(audioCtx,"pcm16");
+  workletNode.port.onmessage = e=>{
+    const {pcm,rms}=e.data; $("#lvl").style.width=Math.min(100,rms*400)+"%";
+    if(ws && ws.readyState===1){ ws.send(JSON.stringify({realtimeInput:{audio:{data:b64(pcm.buffer),mimeType:"audio/pcm;rate=16000"}}})); }
+  };
+  src.connect(workletNode);
+  $("#micDot").classList.add("on"); $("#micLabel").textContent="listening (16 kHz)";
+}
+function b64(buf){ let s="",b=new Uint8Array(buf); for(let i=0;i<b.length;i+=0x8000) s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(s); }
+function playPcm(data){
+  const bin=atob(data), n=bin.length/2, f=new Float32Array(n);
+  for(let i=0;i<n;i++){ let v=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8); if(v>=32768)v-=65536; f[i]=v/32768; }
+  const buf=audioCtx.createBuffer(1,n,24000); buf.copyToChannel(f,0);
+  const s=audioCtx.createBufferSource(); s.buffer=buf; s.connect(audioCtx.destination);
+  playHead=Math.max(playHead,audioCtx.currentTime+0.02); s.start(playHead); playHead+=buf.duration;
+  playing.push(s); s.onended=()=>{playing=playing.filter(x=>x!==s);};
+}
+function stopPlayback(){ playing.forEach(s=>{try{s.stop();}catch(e){}}); playing=[]; if(audioCtx) playHead=audioCtx.currentTime; try{speechSynthesis.cancel();}catch(e){} }
+
+function stopAll(fromClose){
+  live=false; demoRunning=false; stopPlayback();
+  if(ws && !fromClose){ try{ws.close();}catch(e){} } ws=null;
+  if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+  if(workletNode){ try{workletNode.disconnect();}catch(e){} workletNode=null; }
+  $("#micDot").classList.remove("on"); $("#micLabel").textContent="mic off"; $("#lvl").style.width="0";
+  setMode("idle");
+}
+function setMode(m){
+  live = m==="live";
+  const t=$("#modeTag"); t.className="tag "+(m==="idle"?"":m); t.textContent = m==="live"?"● LIVE · Gemini":m==="demo"?"▶ scripted demo":"idle";
+  $("#btnLive").disabled = m!=="idle"; $("#btnDemo").disabled = m!=="idle"; $("#btnStop").disabled = m==="idle";
+  $("#callInfo").textContent = m==="idle"?"":"Lineman R. Patil · Diva East sub-division";
+}
+function alertNote(s){ addMsg("sys",s); }
+
+// ---------- Scripted demo (no API key needed) ----------
+// Replays a realistic call; every tool call and Safety Gate transition is real code.
+let demoRunning=false; const demoHooks={};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const PACE=parseFloat(new URLSearchParams(location.search).get("pace")||"0"); // >0 adds reading time (for screen recordings)
+function speak(text,lang){
+  return new Promise(res=>{
+    try{
+      const u=new SpeechSynthesisUtterance(text); u.lang=lang||"hi-IN"; u.rate=1.05;
+      const v=speechSynthesis.getVoices().find(v=>v.lang===u.lang)||speechSynthesis.getVoices().find(v=>v.lang.startsWith("hi")); if(v) u.voice=v;
+      u.onend=res; u.onerror=res; speechSynthesis.speak(u); setTimeout(res, 900+text.length*55);
+    }catch(e){ setTimeout(res,1200); }
+  });
+}
+async function say(who,text,lang){
+  if(!demoRunning) throw "stop";
+  if(who==="user"){ await typeOut("user",text); turnStart=performance.now(); await sleep(450+PACE*text.length*18); }
+  else { const ttfa=520+Math.round(Math.random()*260); await sleep(ttfa); metrics.ttfa.push(ttfa); render(); await Promise.all([typeOut("agent",text), speak(text,lang)]); if(PACE) await sleep(PACE*text.length*28); }
+}
+async function typeOut(kind,text){ const el=addMsg(kind,""); for(const w of text.split(" ")){ if(!demoRunning) throw "stop"; appendTo(el,w+" "); await sleep(kind==="user"?70:45); } }
+async function tool(name,args){ if(!demoRunning) throw "stop"; await sleep(250); return runTool(name,args); }
+async function operator(ptwId,to){ await sleep(1400+PACE*1500); addMsg("sys",`🧑‍💼 Substation operator clicks “${to==="OPERATOR_APPROVED"?"Approve shutdown":to==="LINE_CLEAR"?"Line clear":"Close permit"}” on the Live Board`); gateAdvance(ptwId,to,"operator"); await sleep(500); }
+
+async function runDemo(){
+  setMode("demo"); demoRunning=true;
+  try{
+    addMsg("sys","Scripted demo: replays a real call flow. Tools, Safety Gate and Live Board are live code. For the real voice agent, add a Gemini API key and press Start live call.");
+    await say("user","Namaste Saathi. DTC-114 Rameshwar Park pe supply band hai, HT fuse udd gaya lagta hai. Iski history batao.");
+    let h=await tool("get_asset_history",{asset_id:"DTC-114"});
+    await say("agent","DTC-114, 200 kVA, feeder Diva-11. Do mahine pehle 12 September ko B-phase HT fuse blow hua tha aur July mein lightning arrester badla gaya tha. Baar baar fuse ja raha hai, to LT overload aur LA dono check karna.");
+    await say("user","Theek hai. Fuse badalne ka procedure kya hai? Aur 16 amp fuse store mein hai?");
+    await tool("search_sop",{query:"HT fuse blown DTC procedure"});
+    await tool("check_stock",{item:"HT fuse 16A"});
+    await say("agent","SOP-DTC-04 ke hisaab se pehle shutdown lo, LT overload aur LA check karo, phir sahi rating ka fuse lagao. Diva sub-store mein 16 amp ke 24 fuse hain.");
+    await say("user","Diva-11 feeder pe shutdown permit chahiye.");
+    let r=await tool("create_ptw_request",{feeder:"Diva-11",asset_id:"DTC-114",reason:"HT DO fuse replacement"});
+    const id=r.ptw_id;
+    await say("agent",`Permit ${id} raise kar diya hai, abhi operator approval baaki hai. Jab tak main na bolun, pole pe kaam shuru mat karna.`);
+    await say("user","Main upar chadh ke kaam shuru kar deta hoon, time kam hai.");
+    await tool("submit_read_back",{ptw_id:id,stage:"start",read_back_text:"chalo shuru karte hain"});
+    await say("agent","Ruko, Safety Gate ne mana kiya hai. Operator ne abhi line isolate nahi ki hai. Approval aate hi main bataunga.");
+    await operator(id,"OPERATOR_APPROVED");
+    await say("agent",`Operator ne approve kar diya. Ab permit number aur feeder bolkar read-back do.`);
+    await say("user",`Permit ${id.replace("PTW-","PTW ")}, feeder Diva 11, DTC 114.`);
+    await tool("submit_read_back",{ptw_id:id,stage:"start",read_back_text:`Permit ${id.replace("PTW-","PTW ")}, feeder Diva 11, DTC 114`});
+    await say("agent","Read-back sahi hai. Operator se line clear ka wait karo.");
+    await operator(id,"LINE_CLEAR");
+    await tool("search_sop",{query:"earthing test dead both sides"});
+    await say("agent","Line clear mil gaya. SOP-EARTH-02: pehle tester se dead check karo, dono taraf earthing lagao, phir hi haath lagana.");
+    await say("user","Ho gaya Saathi, fuse badal diya, LA bhi theek hai. Kaam ho gaya.");
+    await tool("mark_work_done",{ptw_id:id});
+    await say("agent","Badhiya. Ab return read-back do: permit number, feeder, aur sab log aur earth hata diye ya nahi.");
+    await say("user",`Permit ${id.replace("PTW-","PTW ")}, Diva 11, sab log neeche aa gaye, earth hata diya.`);
+    await tool("submit_read_back",{ptw_id:id,stage:"recharge",read_back_text:`Permit ${id.replace("PTW-","PTW ")}, Diva 11, sab log neeche aa gaye, earth hata diya`});
+    await say("agent","Recharge request operator ko bhej di hai.");
+    await operator(id,"CLOSED");
+    await say("agent",`Permit ${id} closed, Diva-11 charge ho gaya. Kya main complaint close karun aur fault log karun?`);
+    await say("user","Haan, complaint close karo, fault log karo, aur do 16 amp fuse ka indent daal do spare ke liye.");
+    await tool("close_complaint",{asset_id:"DTC-114"});
+    await tool("log_fault",{asset_id:"DTC-114",fault_type:"HT DO fuse blown",cause:"LT overload suspected",note:"Fuse replaced 16A, LA checked OK"});
+    await tool("raise_indent",{item:"HT fuse 16A",qty:2});
+    await say("agent","Complaint CMP-55821 close ho gayi, consumer ko SMS chala gaya. Fault ticket aur do fuse ka indent bhi ban gaya. Dhyan se utarna, Saathi.");
+    addMsg("sys","Demo complete. Every step is on the Live Board and in the audit trail.");
+  }catch(e){ if(e!=="stop") console.error(e); }
+  demoRunning=false; if(!live) setMode("idle");
+}
+
+// ---------- wire up ----------
+$("#btnLive").onclick=()=>startLive().catch(e=>{ addMsg("sys","Could not start: "+e.message); stopAll(); });
+$("#btnDemo").onclick=()=>runDemo();
+$("#btnStop").onclick=()=>stopAll();
+$("#btnSend").onclick=sendText;
+$("#txt").addEventListener("keydown",e=>{ if(e.key==="Enter") sendText(); });
+try{ const k=localStorage.getItem("ls_key"); if(k) $("#apiKey").value=k; }catch(e){}
+try{ speechSynthesis.getVoices(); }catch(e){}
+if(new URLSearchParams(location.search).has("autodemo")) setTimeout(runDemo,600);
+render(); audit("LineSaathi board ready. Sample data is synthetic.");
+</script>
+</body>
+</html>
